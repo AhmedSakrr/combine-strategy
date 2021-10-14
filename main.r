@@ -55,7 +55,7 @@ activate_ce1_strategy = input(title='Activate CE 1 STRATEGY ?', defval=true)
 
 lengthCE = input(title='ATR Period', defval=1)
 multCE = input.float(title='ATR Multiplier', step=0.1, defval=1.5)
-showLabelsCE = input(title='Show Buy/Sell Labels ?', defval=true)
+showLabelsCE = input(title='Show Buy/Sell Labels ?', defval=false)
 useCloseCE =  input(title='Use Close Price for Extremums ?', defval=false)
 highlightStateCE = input(title='Highlight State ?', defval=false)
 
@@ -184,7 +184,7 @@ activate_div4_strategy = true
 prdDIV4 = input.int(defval=3, title='Pivot Period', minval=1, maxval=50)
 sourceDIV4 = input.string(defval='Close', title='Source for Pivot Points', options=['Close', 'High/Low'])
 searchdiv_DIV4 = input.string(defval='Regular/Hidden', title='Divergence Type', options=['Regular', 'Hidden', 'Regular/Hidden'])
-showindis_DIV4 = input.string(defval='Full', title='Show Indicator Names', options=['Full', 'First Letter', 'Don\'t Show'])
+showindis_DIV4 = input.string(defval='Don\'t Show', title='Show Indicator Names', options=['Full', 'First Letter', 'Don\'t Show'])
 showlimit_DIV4 = input.int(1, title='Minimum Number of Divergence', minval=1, maxval=11)
 maxpp_DIV4 = input.int(defval=10, title='Maximum Pivot Points to Check', minval=1, maxval=20)
 maxbars_DIV4 = input.int(defval=100, title='Maximum Bars to Check', minval=30, maxval=200)
@@ -192,7 +192,7 @@ shownum_DIV4 = input(defval=true, title='Show Divergence Number')
 //false
 showlast_DIV4 = input(defval=true, title='Show Only Last Divergence')
 //default was false
-dontconfirm_DIV4 = input(defval=true, title='Don\'t Wait for Confirmation')
+dontconfirm_DIV4 = input(defval=false, title='Don\'t Wait for Confirmation')
 showlines_DIV4 = input(defval=true, title='Show Divergence Lines')
 showpivot_DIV4 = input(defval=false, title='Show Pivot Points')
 calcmacd_DIV4 = input(defval=true, title='MACD')
