@@ -724,3 +724,61 @@ fill(xzone_consold, lowRange_consold, color=color.new(color.red, fill_trancparen
 
 
 //*********************************************************
+
+//CRUDE SCALP
+
+
+Rsi_value_crude_scalp = input.int(14, title='RSI Length', step=1)
+hl_crude_scalp = input.int(75, title='Higher Value of RSI', step=1)
+ll_crude_scalp = input.int(25, title='Lower value of RSI', step=1)
+rs_crude_scalp = ta.rsi(close, Rsi_value_crude_scalp)
+
+sma_value_crude_scalp = input.int(50, title='SMA Length', step=1)
+sma1_crude_scalp = ta.sma(close, sma_value_crude_scalp)
+
+dist_SMA_crude_scalp = 1
+candle_length_crude_scalp = 1
+
+iff_1_crude_scalp = high < sma1_crude_scalp ? color.red : color.yellow
+iff_2_crude_scalp = low > sma1_crude_scalp ? color.lime : iff_1_crude_scalp
+mycolor_crude_scalp = rs_crude_scalp >= hl_crude_scalp or rs_crude_scalp <= ll_crude_scalp ? color.yellow : iff_2_crude_scalp
+gaps_crude_scalp = sma1_crude_scalp + dist_SMA_crude_scalp  //Gap between price and SMA for Sell
+gapb_crude_scalp = sma1_crude_scalp - dist_SMA_crude_scalp  //Gap between price and SMA for Buy
+chartgap_crude_scalp = gaps_crude_scalp or gapb_crude_scalp  //for both below or above the SMA 
+gap1_crude_scalp = sma1_crude_scalp + 5
+gapvalue_crude_scalp = open / 100 * candle_length_crude_scalp  //setting % with its Share price
+gapp_crude_scalp = high - low > gapvalue_crude_scalp  //or rs_crude_scalp<50     // Condition for Min candle size to be eligible for giving signal - Buy Calls
+gapp_crude_scalp2 = high - low > gapvalue_crude_scalp  //or rs_crude_scalp>55    // Condition for Min candle size to be eligible for giving signal - Sell Calls
+bull_crude_scalp = open < close and high - low > 2 * gapvalue_crude_scalp and close > (high + open) / 2
+bear_crude_scalp = open > close and high - low > 2 * gapvalue_crude_scalp and close < (low + open) / 2
+
+
+rev1_crude_scalp = rs_crude_scalp > 68 and open > close and open > gaps_crude_scalp and high - low > gapvalue_crude_scalp + 0.5 and low != close  //over red candles  "S" - uptrend
+rev1a_crude_scalp = rs_crude_scalp > 90 and open < close and close > gaps_crude_scalp and high != close and open != low  // over green candles"S" - uptrend
+sellrev_crude_scalp = rev1_crude_scalp or rev1a_crude_scalp
+
+rev2_crude_scalp = rs_crude_scalp < 50 and open < close and open < gapb_crude_scalp and open == low  //over green candles"B"
+rev3_crude_scalp = rs_crude_scalp < 30 and open > close and high > gapb_crude_scalp and open != high and barstate.isconfirmed != bear_crude_scalp  //over red candles"B"
+rev4_crude_scalp = rs_crude_scalp < 85 and close == high and high - low > gapvalue_crude_scalp and open < close  //over green candle in both trends
+hlrev_s_crude_scalp = ta.crossunder(rs_crude_scalp, hl_crude_scalp)
+llrev_b_crude_scalp = ta.crossover(rs_crude_scalp, ll_crude_scalp) and open < close
+
+buycall_crude_scalp = open < close and open > sma1_crude_scalp and ta.cross(close[1], sma1_crude_scalp) and close > sma1_crude_scalp
+sellcall_crude_scalp = ta.cross(close, sma1_crude_scalp) and open > close
+BUY_crude_scalp = ta.crossover(close[1], sma1_crude_scalp) and close[1] > open[1] and high[0] > high[1] and close[0] > open[0]
+SELL_crude_scalp = ta.crossunder(low[1], sma1_crude_scalp) and close[1] < open[1] and low[0] < low[1] and close[0] < open[0]
+
+plotshape(SELL_crude_scalp, title='SELL', style=shape.labeldown, color=color.new(color.red, 30), text='S', textcolor=color.new(color.black, 30))
+plotshape(BUY_crude_scalp, title='BUY', style=shape.labelup, color=color.new(color.aqua, 30), text='B', textcolor=color.new(color.black, 30), location=location.belowbar)
+
+plotshape(hlrev_s_crude_scalp, title='Reversal1', style=shape.labeldown, color=color.new(color.yellow, 20), text='!', textcolor=color.new(color.black, 20))
+plotshape(llrev_b_crude_scalp, title='Reversal2', style=shape.labelup, color=color.new(color.yellow, 20), text='!', textcolor=color.new(color.black, 20), location=location.belowbar)
+
+plot(sma1_crude_scalp, title='SMA', color=mycolor_crude_scalp, linewidth=2)
+alertcondition(hlrev_s_crude_scalp or llrev_b_crude_scalp, title='Reversal Signal', message='Reversal Alert')
+alertcondition(SELL_crude_scalp or BUY_crude_scalp, title='Buy/Sale Signal', message='Buy/Sell Alert')
+
+
+//END OF CRUDE SCALP
+
+//**********************************************************
