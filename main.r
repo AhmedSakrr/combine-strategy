@@ -727,6 +727,8 @@ fill(xzone_consold, lowRange_consold, color=color.new(color.red, fill_trancparen
 
 //CRUDE SCALP
 
+activate_crude_scalp_strategy = input(title='Activate Crude Scalp STRATEGY ?', defval=true)
+
 
 Rsi_value_crude_scalp = input.int(14, title='RSI Length', step=1)
 hl_crude_scalp = input.int(75, title='Higher Value of RSI', step=1)
@@ -768,13 +770,13 @@ sellcall_crude_scalp = ta.cross(close, sma1_crude_scalp) and open > close
 BUY_crude_scalp = ta.crossover(close[1], sma1_crude_scalp) and close[1] > open[1] and high[0] > high[1] and close[0] > open[0]
 SELL_crude_scalp = ta.crossunder(low[1], sma1_crude_scalp) and close[1] < open[1] and low[0] < low[1] and close[0] < open[0]
 
-plotshape(SELL_crude_scalp, title='SELL', style=shape.labeldown, color=color.new(color.red, 30), text='S', textcolor=color.new(color.black, 30))
-plotshape(BUY_crude_scalp, title='BUY', style=shape.labelup, color=color.new(color.aqua, 30), text='B', textcolor=color.new(color.black, 30), location=location.belowbar)
+plotshape(activate_crude_scalp_strategy ? SELL_crude_scalp : na , title='SELL', style=shape.labeldown, color=color.new(color.red, 30), text='S', textcolor=color.new(color.black, 30))
+plotshape(activate_crude_scalp_strategy ? BUY_crude_scalp : na , title='BUY', style=shape.labelup, color=color.new(color.aqua, 30), text='B', textcolor=color.new(color.black, 30), location=location.belowbar)
 
-plotshape(hlrev_s_crude_scalp, title='Reversal1', style=shape.labeldown, color=color.new(color.yellow, 20), text='!', textcolor=color.new(color.black, 20))
-plotshape(llrev_b_crude_scalp, title='Reversal2', style=shape.labelup, color=color.new(color.yellow, 20), text='!', textcolor=color.new(color.black, 20), location=location.belowbar)
+plotshape(activate_crude_scalp_strategy ? hlrev_s_crude_scalp : na , title='Reversal1', style=shape.labeldown, color=color.new(color.yellow, 20), text='!', textcolor=color.new(color.black, 20))
+plotshape(activate_crude_scalp_strategy ? llrev_b_crude_scalp : na , title='Reversal2', style=shape.labelup, color=color.new(color.yellow, 20), text='!', textcolor=color.new(color.black, 20), location=location.belowbar)
 
-plot(sma1_crude_scalp, title='SMA', color=mycolor_crude_scalp, linewidth=2)
+plot(activate_crude_scalp_strategy ? sma1_crude_scalp: na , title='SMA', color=mycolor_crude_scalp, linewidth=2)
 alertcondition(hlrev_s_crude_scalp or llrev_b_crude_scalp, title='Reversal Signal', message='Reversal Alert')
 alertcondition(SELL_crude_scalp or BUY_crude_scalp, title='Buy/Sale Signal', message='Buy/Sell Alert')
 
