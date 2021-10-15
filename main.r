@@ -1,6 +1,24 @@
 // This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © mrhili
 
+//a combination of multiple strategies with my settings to scalp anything in 1min frame
+//strategies added :
+
+//4 ema (20,50,100,200)
+//zlsma
+//chandelier exit by evergrate
+//another chandelier exit by evergrate
+//divergence formany v4
+//auto supportand resistance
+//consolidation ranges
+//crude scalp (entraday)
+
+//github link : https://github.com/mrhili/combine-strategy
+
+
+//link of script in tradingview (as private) https://www.tradingview.com/script/VAAmVEK0-combination-of-multiple-strategies/
+
+
 //@version=5
 
 activate_ema_strategy = input(title='Activate EMA STRATEGY ?', defval=true)
@@ -576,7 +594,7 @@ alertcondition(neg_hid_div_detected_DIV4, title='Negative Hidden Divergence Dete
 alertcondition(pos_reg_div_detected_DIV4 or pos_hid_div_detected_DIV4, title='Positive Divergence Detected', message='Positive Divergence Detected')
 alertcondition(neg_reg_div_detected_DIV4 or neg_hid_div_detected_DIV4, title='Negative Divergence Detected', message='Negative Divergence Detected')
 
-//********************************************
+
 //END OF DIVERGENCE FR MANY v4
 
 
