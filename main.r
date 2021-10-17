@@ -18,6 +18,7 @@
 
 //link of script in tradingview (as private) https://www.tradingview.com/script/VAAmVEK0-combination-of-multiple-strategies/
 
+//Telegram group to study this combo strategy : https://t.me/combo1strategy
 
 //@version=5
 
@@ -802,3 +803,28 @@ alertcondition(SELL_crude_scalp or BUY_crude_scalp, title='Buy/Sale Signal', mes
 //END OF CRUDE SCALP
 
 //**********************************************************
+
+//GOLDEN CROSS STRATEGY
+
+activate_golden_cross_strategy = input(title='Activate Golden cross STRATEGY ?', defval=true)
+
+color_golden_cross_strategy = input.color(defval=color.lime, title='', inline='golden cross')
+
+// fast ma
+maFastSource_gs   = input(defval = close, title = "Fast MA Source")
+maFastLength_gs   = input.int(defval = 50, title = "Fast MA Period", minval = 1)
+
+// longest ma
+maSlowestSource_gs   = input(defval = close, title = "Slow MA Source")
+maSlowestLength_gs   = input.int(defval = 200, title = "Slow MA Period", minval = 1)
+
+fastMA_gs = ta.ema(maFastSource_gs, maFastLength_gs)
+slowestMA_gs = ta.ema(maSlowestSource_gs, maSlowestLength_gs)
+
+
+
+plotshape(ta.cross(fastMA_gs, slowestMA_gs) and activate_golden_cross_strategy ? slowestMA_gs : na ,style= shape.xcross, color= color_golden_cross_strategy , size= size.large)
+
+
+//END OF GOLDEN CROSS STRATEGY
+//********************************************************
