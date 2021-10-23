@@ -5,6 +5,7 @@
 //strategies added :
 
 //4 ema (20,50,100,200)
+// ma (4000,200)
 //zlsma
 //chandelier exit by evergrate
 //another chandelier exit by evergrate
@@ -12,6 +13,9 @@
 //auto supportand resistance
 //consolidation ranges
 //crude scalp (entraday)
+//golden cross 200 X 50
+//pre golden cross 100 X 20
+//pick cross 50 X 10
 
 //github link : https://github.com/mrhili/combine-strategy
 
@@ -22,7 +26,17 @@
 
 //@version=5
 
-activate_ema_strategy = input(title='Activate EMA STRATEGY ?', defval=true)
+activate_20_ema_strategy = input(title='Activate EMA STRATEGY ?', defval=false)
+
+activate_50_ema_strategy = input(title='Activate EMA STRATEGY ?', defval=false)
+
+activate_100_ema_strategy = input(title='Activate EMA STRATEGY ?', defval=false)
+
+activate_200_ema_strategy = input(title='Activate EMA STRATEGY ?', defval=true)
+
+activate_ma_slow_strategy = input(title='Activate MA slow STRATEGY ?', defval=false)
+
+activate_ma_very_slow_strategy = input(title='Activate MA very slow STRATEGY ?', defval=false)
 
 //EMA STRATEGY
 indicator(title='combine stragegies', shorttitle='CMB', overlay=true, format=format.inherit , max_bars_back=500)
@@ -32,17 +46,33 @@ ema100 = ta.ema(close, 100)
 ema200 = ta.ema(close, 200)
 
 
+maVerySlowL = input(4000, "ma very slow lenght")
+
+maSlowL = input(200, "ma very slow lenght")
+
+
+maVerySlow = ta.sma(close,maVerySlowL)
+
+maSlow = ta.sma(close,maSlowL )
+
+
 //EMA20
-plot(activate_ema_strategy? ema20 : na, title='ema 20', color=color.new(color.yellow, 0), linewidth=1)
+plot(activate_20_ema_strategy? ema20 : na, title='ema 20', color=color.new(color.yellow, 0), linewidth=1)
 
 //EMA50
-plot(activate_ema_strategy? ema50 : na, title='ema 50', color=color.new(color.blue, 0), linewidth=1)
+plot(activate_50_ema_strategy? ema50 : na, title='ema 50', color=color.new(color.blue, 0), linewidth=1)
 
 //EMA100
-plot(activate_ema_strategy? ema100 : na, title='ema 100', color=color.new(color.green, 0), linewidth=3)
+plot(activate_100_ema_strategy? ema100 : na, title='ema 100', color=color.new(color.green, 0), linewidth=3)
 
 //EMA200
-plot(activate_ema_strategy? ema200 : na, title='ema 200', color=color.new(color.orange, 0), linewidth=3)
+plot(activate_200_ema_strategy? ema200 : na, title='ema 200', color=color.new(color.orange, 0), linewidth=3)
+
+//MA VERY SLOW
+plot(activate_ma_slow_strategy? maSlow : na, title='ma slow', color=color.new( #0096FF, 0), linewidth=3)
+
+//MA VERY SLOW
+plot(activate_ma_very_slow_strategy? maVerySlow : na, title='ma very slow', color=color.new(color.purple, 0), linewidth=3)
 
 
 
@@ -52,7 +82,7 @@ plot(activate_ema_strategy? ema200 : na, title='ema 200', color=color.new(color.
 
 activate_zlsma_strategy = input(title='Activate ZLSMA STRATEGY ?', defval=true)
 
-lenghtZLSMA = input(45, "zlsma lenght")
+lenghtZLSMA = input(60, "zlsma lenght")
 offsetZLSMA = input(0, "zlsma offset")
 sourceZLSMA = input(close, "zlsma source")
 
@@ -62,7 +92,7 @@ eqZLSMA= lsma-lsma2
 zlsma = lsma+eqZLSMA
 
 
-plot(activate_zlsma_strategy? zlsma : na, title='zlsma', color=color.new(color.black, 50), linewidth=4)
+plot(activate_zlsma_strategy? zlsma : na, title='zlsma', color=color.new(#ff007f, 50), linewidth=4)
 
 //END ZLSMA STRATEGY
 //*************************************************************
@@ -808,23 +838,114 @@ alertcondition(SELL_crude_scalp or BUY_crude_scalp, title='Buy/Sale Signal', mes
 
 activate_golden_cross_strategy = input(title='Activate Golden cross STRATEGY ?', defval=true)
 
-color_golden_cross_strategy = input.color(defval=color.lime, title='', inline='golden cross')
+color_golden_cross_strategy = input.color(defval=color.new(#FFD700, 0) , title='', inline='golden cross')
 
-// fast ma
-maFastSource_gs   = input(defval = close, title = "Fast MA Source")
-maFastLength_gs   = input.int(defval = 50, title = "Fast MA Period", minval = 1)
+color_death_cross_strategy = input.color(defval=color.new(#D3D3D3, 0), title='', inline='death cross')
 
-// longest ma
-maSlowestSource_gs   = input(defval = close, title = "Slow MA Source")
-maSlowestLength_gs   = input.int(defval = 200, title = "Slow MA Period", minval = 1)
+source_gs   = input(defval = close, title = "Fast MA Source")
 
-fastMA_gs = ta.ema(maFastSource_gs, maFastLength_gs)
-slowestMA_gs = ta.ema(maSlowestSource_gs, maSlowestLength_gs)
+fastestLength_gs   = input.int(defval = 50, title = "fast MA/EMA Period", minval = 1)
+slowestLength_gs   = input.int(defval = 200, title = "Slow MA/EMA Period", minval = 1)
 
 
+exponential_gs = input(false, title="Exponential MA")
 
-plotshape(ta.cross(fastMA_gs, slowestMA_gs) and activate_golden_cross_strategy ? slowestMA_gs : na ,style= shape.xcross, color= color_golden_cross_strategy , size= size.large)
+
+//plotshape(ta.cross(fastEMA_gs, slowestEMA_gs) and activate_golden_cross_strategy ? slowestEMA_gs : na ,style= shape.xcross, color= codiff_gs_color , size= size.huge)
+
+
+
+fastest_ma_gs = exponential_gs ? ta.ema(source_gs, fastestLength_gs) : ta.sma(source_gs, fastestLength_gs)
+sloest_ma_gs = exponential_gs ? ta.ema(source_gs, slowestLength_gs) : ta.sma(source_gs, slowestLength_gs)
+
+golden_cross() => fastest_ma_gs > sloest_ma_gs
+death_cross() => fastest_ma_gs < sloest_ma_gs
+
+Golden() => golden_cross() and death_cross()[1]
+Death() => death_cross() and golden_cross()[1]
+
+bgcolor( activate_golden_cross_strategy? Golden() ? color_golden_cross_strategy : Death() ? color_death_cross_strategy : na : na,transp=0, title="Golden & Death Cross Background Color")
+
+plotshape( activate_golden_cross_strategy? Golden() : na, color=color.black, style=shape.xcross, text="G", location=location.top)
+plotshape( activate_golden_cross_strategy? Death() : na, color=color.black, style=shape.xcross, text="D", location=location.top)
+
 
 
 //END OF GOLDEN CROSS STRATEGY
+//********************************************************
+
+
+//GOLDEN PRE CROSS STRATEGY
+
+activate_pre_golden_cross_strategy = input(title='Activate PRE Golden cross STRATEGY ?', defval=true)
+
+color_golden_pre_cross_strategy = input.color(defval=color.new(	#801A86, 70) , title='', inline='golden cross')
+
+color_death_pre_cross_strategy = input.color(defval=color.new(#4E0250, 70), title='', inline='death cross')
+
+source_pre_gc   = input(defval = close, title = "Fast MA Source")
+
+fastestLength_pre_gc   = input.int(defval = 20, title = "fast MA/EMA Period", minval = 1)
+slowestLength_pre_gc   = input.int(defval = 100, title = "Slow MA/EMA Period", minval = 1)
+
+
+exponential_pre_gc = input(false, title="Exponential MA")
+
+
+
+fastest_ma_pre_gc = exponential_pre_gc ? ta.ema(source_pre_gc, fastestLength_pre_gc) : ta.sma(source_pre_gc, fastestLength_pre_gc)
+sloest_ma_pre_gc = exponential_pre_gc ? ta.ema(source_pre_gc, slowestLength_pre_gc) : ta.sma(source_pre_gc, slowestLength_pre_gc)
+
+pre_golden_cross() => fastest_ma_pre_gc > sloest_ma_pre_gc
+pre_death_cross() => fastest_ma_pre_gc < sloest_ma_pre_gc
+
+preGolden() => pre_golden_cross() and pre_death_cross()[1]
+preDeath() => pre_death_cross() and pre_golden_cross()[1]
+
+bgcolor(activate_pre_golden_cross_strategy? preGolden() ? color_golden_pre_cross_strategy : preDeath() ? color_death_pre_cross_strategy : na : na ,transp=0, title="pre Golden & pre Death Cross Background Color")
+
+plotshape(activate_pre_golden_cross_strategy? preGolden() : na, color=color.black, style=shape.xcross, text="PRE G", location=location.top)
+plotshape(activate_pre_golden_cross_strategy? preDeath() : na, color=color.black, style=shape.xcross, text="PRE D", location=location.top)
+
+
+
+//END OF PRE GOLDEN CROSS STRATEGY
+//********************************************************
+
+
+//GOLDEN pick CROSS STRATEGY
+
+activate_pick_golden_cross_strategy = input(title='Activate pick Golden cross STRATEGY ?', defval=true)
+
+color_golden_pick_cross_strategy = input.color(defval=color.new(#8FE388, 70) , title='', inline='golden cross')
+
+color_death_pick_cross_strategy = input.color(defval=color.new(#58BC82, 70), title='', inline='death cross')
+
+source_pick_gc   = input(defval = close, title = "Fast MA Source")
+
+fastestLength_pick_gc   = input.int(defval = 10, title = "fast MA/EMA Period", minval = 1)
+slowestLength_pick_gc   = input.int(defval = 50, title = "Slow MA/EMA Period", minval = 1)
+
+
+exponential_pick_gc = input(false, title="Exponential MA")
+
+
+
+fastest_ma_pick_gc = exponential_pick_gc ? ta.ema(source_pick_gc, fastestLength_pick_gc) : ta.sma(source_pick_gc, fastestLength_pick_gc)
+sloest_ma_pick_gc = exponential_pick_gc ? ta.ema(source_pick_gc, slowestLength_pick_gc) : ta.sma(source_pick_gc, slowestLength_pick_gc)
+
+pick_golden_cross() => fastest_ma_pick_gc > sloest_ma_pick_gc
+pick_death_cross() => fastest_ma_pick_gc < sloest_ma_pick_gc
+
+pickGolden() => pick_golden_cross() and pick_death_cross()[1]
+pickDeath() => pick_death_cross() and pick_golden_cross()[1]
+
+bgcolor(activate_pick_golden_cross_strategy ? pickGolden() ? color_golden_pick_cross_strategy : pickDeath() ? color_death_pick_cross_strategy : na : na,transp=0, title="pick Golden & pick Death Cross Background Color")
+
+plotshape(activate_pick_golden_cross_strategy? pickGolden() : na , color=color.black, style=shape.xcross, text="pick G", location=location.top)
+plotshape(activate_pick_golden_cross_strategy? pickDeath() : na , color=color.black, style=shape.xcross, text="pick D", location=location.top)
+
+
+
+//END OF PICK GOLDEN CROSS STRATEGY
 //********************************************************
