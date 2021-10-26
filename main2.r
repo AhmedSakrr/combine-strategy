@@ -5,386 +5,10 @@
 //@version=5
 
 
-indicator(title='combine stragegies 2', shorttitle='CMB2', overlay=true, format=format.inherit , max_bars_back=500)
+indicator(title='combine stragegies 2', shorttitle='CMB2', overlay=true, format=format.inherit , max_bars_back=5000)
 
 
-activate_knn_strategy = input(title='Activate KNN STRATEGY ?', defval=false)
 
-//indicator('Machine Learning: kNN-based Strategy (s2)', overlay=true, precision=4, max_labels_count=200)
-
-// kNN-based Strategy (FX and Crypto)
-// Description: 
-// This strategy uses a classic machine learning algorithm - k Nearest Neighbours (kNN) - 
-// to let you find a prediction for the next (tomorrow's, next month's, etc.) market move. 
-// Being an unsupervised machine learning algorithm, kNN is one of the most simple learning algorithms. 
-
-// To do a prediction of the next market move, the kNN algorithm uses the historic data, 
-// collected in 3 arrays - feature1_knn, feature2_knn and directions_knn, - and finds the k-nearest 
-// neighbours of the current indicator(s) values. 
-
-// The two dimensional kNN algorithm just has a look on what has happened in the past when 
-// the two indicators had a similar level. It then looks at the k nearest neighbours, 
-// sees their state and thus classifies the current point.
-
-// The kNN algorithm offers a framework to test all kinds of indicators easily to see if they 
-// have got any *predictive value*. One can easily add cog, wpr and others.
-// Note: TradingViewss playback feature helps to see this strategy in action.
-// Warning: signal_knns ARE repainting.
-
-// Style tags: Trend Following, Trend Analysis
-// Asset class: Equities, Futures, ETFs, Currencies and Commodities
-// Dataset: FX Minutes/Hours+++/Days
-
-//-------------------- Inputs
-
-ind_knn = input.string('All', 'Indicator', options=['RSI', 'ROC', 'CCI', 'All'])
-fast_knn = input.int(14, 'Fast Period', minval=1)
-slow_knn = input.int(28, 'slow_knn Period', minval=2)
-fltr_knn = input(false, 'To Filter Out Signals By Volatility?')
-
-startYear_knn = input.int(2000, 'Training Start Year', minval=2000)
-startMonth_knn = input.int(1, 'Training Start Month', minval=1, maxval=12)
-startDay_knn = input.int(1, 'Training Start Day', minval=1, maxval=31)
-stopYear_knn = input.int(2021, 'Training Stop Year', minval=2000)
-stopMonth_knn = input.int(12, 'Training Stop Month', minval=1, maxval=12)
-stopDay_knn = input.int(31, 'Training Stop Day', minval=1, maxval=31)
-
-//-------------------- Global Variables
-
-var BUY_knn = 1
-var SELL_knn = -1
-var HOLD_knn = 0
-
-var k_knn = math.floor(math.sqrt(252))  // k Value for kNN
-
-//-------------------- Custom Functions
-
-cAqua(g) =>
-    g > 9 ? #0080FFff : g > 8 ? #0080FFe5 : g > 7 ? #0080FFcc : g > 6 ? #0080FFb2 : g > 5 ? #0080FF99 : g > 4 ? #0080FF7f : g > 3 ? #0080FF66 : g > 2 ? #0080FF4c : g > 1 ? #0080FF33 : #00C0FF19
-cPink(g) =>
-    g > 9 ? #FF0080ff : g > 8 ? #FF0080e5 : g > 7 ? #FF0080cc : g > 6 ? #FF0080b2 : g > 5 ? #FF008099 : g > 4 ? #FF00807f : g > 3 ? #FF008066 : g > 2 ? #FF00804c : g > 1 ? #FF008033 : #FF008019
-
-//-------------------- Logic
-
-periodStart_knn = timestamp(startYear_knn, startMonth_knn, startDay_knn, 0, 0)
-periodStop_knn = timestamp(stopYear_knn, stopMonth_knn, stopDay_knn, 0, 0)
-
-// 3 pairs of predictor indicators, long and short each
-rs_knn = ta.rsi(close, slow_knn)
-rf_knn = ta.rsi(close, fast_knn)
-cs_knn = ta.cci(close, slow_knn)
-cf_knn = ta.cci(close, fast_knn)
-os_knn = ta.roc(close, slow_knn)
-of_knn = ta.roc(close, fast_knn)
-// TOADD or TOTRYOUT:
-//    cmo(close, slow_knn), cmo(close, fast_knn)
-//    mfi(close, slow_knn), mfi(close, fast_knn)
-//    mom(close, slow_knn), mom(close, fast_knn)
-f1_knn = ind_knn == 'RSI' ? rs_knn : ind_knn == 'ROC' ? os_knn : ind_knn == 'CCI' ? cs_knn : math.avg(rs_knn, os_knn, cs_knn)
-f2_knn = ind_knn == 'RSI' ? rf_knn : ind_knn == 'ROC' ? of_knn : ind_knn == 'CCI' ? cf_knn : math.avg(rf_knn, of_knn, cf_knn)
-
-// Classification data, what happens on the next bar
-class1_knn = close[1] < close[0] ? SELL_knn : close[1] > close[0] ? BUY_knn : HOLD_knn
-
-// Training data, normalized to the range of [0,...,100]
-var feature1_knn = array.new_float(0)  // [0,...,100]
-var feature2_knn = array.new_float(0)  //    ...
-var directions_knn = array.new_int(0)  // [-1; +1]
-
-// Result data
-var predictions_knn = array.new_int(0)
-var prediction_knn = 0.
-
-var startLongTrade_knn = false
-var startShortTrade_knn = false
-var endLongTrade_knn = false
-var endShortTrade_knn = false
-
-var signal_knn = HOLD_knn
-
-// Use particular training period
-if time >= periodStart_knn and time <= periodStop_knn
-    // Store everything in arrays. Features represent a square 100 x 100 matrix,
-    // whose row-colum intersections represent class labels, showing historic directions_knn
-    array.push(feature1_knn, f1_knn)
-    array.push(feature2_knn, f2_knn)
-    array.push(directions_knn, class1_knn)
-
-// Ucomment the followng statement (if barstate.islast) and tab everything below
-// between BOBlock and EOBlock marks to see just the recent several signals gradually 
-// showing up, rather than all the preceding signals
-
-//if barstate.islast   
-
-//==BOBlock	
-
-// Core logic of the algorithm
-size_knn = array.size(directions_knn)
-maxdist_knn = -999.
-// Loop through the training arrays, getting distances and corresponding directions_knn.
-for i_knn = 0 to size_knn - 1 by 1
-    // Calculate the euclidean distance of current point to all historic points,
-    // here the metric used might as well be a manhattan distance or any other.
-    d = math.sqrt(math.pow(f1_knn - array.get(feature1_knn, i_knn), 2) + math.pow(f2_knn - array.get(feature2_knn, i_knn), 2))
-
-    if d > maxdist_knn
-        maxdist_knn := d
-        if array.size(predictions_knn) >= k_knn
-            array.shift(predictions_knn)
-        array.push(predictions_knn, array.get(directions_knn, i_knn))
-
-//==EOBlock	
-
-// Note: in this setup theres no need for distances array (i.e. array.push(distances, d)),
-//       but the drawback is that a sudden max value may shadow all the subsequent values.
-// One of the ways to bypass this is to:
-// 1) store d in distances array,
-// 2) calculate newdirs = bubbleSort(distances, directions_knn), and then 
-// 3) take a slice with array.slice(newdirs) from the end
-
-// Get the overall prediction of k nearest neighbours
-prediction_knn := array.sum(predictions_knn)
-
-// Now that we got a prediction for the next market move, we need to make use of this prediction and 
-// trade it. The returns then will show if everything works as predicted.
-// Over here is a simple long/short interpretation of the prediction, 
-// but of course one could also use the quality of the prediction (+5 or +1) in some sort of way,
-// ex. for position sizing.
-
-signal_knn := prediction_knn > 0 ? BUY_knn : prediction_knn < 0 ? SELL_knn : nz(signal_knn[1])  // HOLD_knn
-
-changed_knn = ta.change(signal_knn)
-
-filter_knn = fltr_knn ? ta.atr(13) > ta.atr(40) : true
-startLongTrade_knn := changed_knn and signal_knn == BUY_knn and filter_knn  // filter out by high volatility, 
-startShortTrade_knn := changed_knn and signal_knn == SELL_knn and filter_knn  // or ex. atr(1) > atr(10)...
-endLongTrade_knn := changed_knn and signal_knn == SELL_knn  //TOADD: stop by trade duration
-endShortTrade_knn := changed_knn and signal_knn == BUY_knn
-
-//-------------------- Rendering
-
-plotshape(activate_knn_strategy and startLongTrade_knn ? low : na, location=location.belowbar, style=shape.labelup, color=cAqua(prediction_knn * 5), size=size.small, title='Buy')  // color intensity correction
-plotshape(activate_knn_strategy and startShortTrade_knn ? high : na, location=location.abovebar, style=shape.labeldown, color=cPink(-prediction_knn * 5), size=size.small, title='Sell')
-plot(activate_knn_strategy and endLongTrade_knn ? high : na, style=plot.style_cross, color=cAqua(6), linewidth=3, title='StopBuy')
-plot(activate_knn_strategy and endShortTrade_knn ? low : na, style=plot.style_cross, color=cPink(6), linewidth=3, title='StopSell')
-
-//-------------------- Alerting
-
-if changed_knn and signal_knn == BUY_knn
-    alert('Buy Alert', alert.freq_once_per_bar)  // alert.freq_once_per_bar_close
-if changed_knn and signal_knn == SELL_knn
-    alert('Sell Alert', alert.freq_once_per_bar)
-
-alertcondition(startLongTrade_knn, title='Buy', message='Go long!')
-alertcondition(startShortTrade_knn, title='Sell', message='Go short!')
-//alertcondition(startLongTrade_knn or startShortTrade_knn, title='Alert', message='Deal Time!')
-
-//-------------------- Backtesting (TODO)
-
-show_cumtr_knn = input(false, 'Show Trade Return?')
-lot_size_knn = input.float(100.0, 'Lot Size', options=[0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10, 20, 30, 50, 100, 1000, 2000, 3000, 5000, 10000])
-
-var start_lt_knn = 0.
-var long_trades_knn = 0.
-var start_st_knn = 0.
-var short_trades_knn = 0.
-
-if startLongTrade_knn
-    start_lt_knn := ohlc4
-    start_lt_knn
-if endLongTrade_knn
-    long_trades_knn := (open - start_lt_knn) * lot_size_knn
-    long_trades_knn
-if startShortTrade_knn
-    start_st_knn := ohlc4
-    start_st_knn
-if endShortTrade_knn
-    short_trades_knn := (start_st_knn - open) * lot_size_knn
-    short_trades_knn
-
-cumreturn_knn = ta.cum(long_trades_knn) + ta.cum(short_trades_knn)
-
-var label lbl_knn = na
-if show_cumtr_knn  //and barstate.islast  
-    lbl_knn := label.new(bar_index, close, 'CumReturn: ' + str.tostring(cumreturn_knn, '#.#'), xloc.bar_index, yloc.price, color.new(color.blue, 100), label.style_label_left, color.black, size.small, text.align_left)
-    label.delete(lbl_knn[1])
-
-
-
-
-
-//******************************************************
-//START VWMA with kNN Machine Learning: MFI/ADX by lastguru
-
-activate_vwma_knn_strategy = input(title='Activate VWMA KNN STRATEGY ?', defval=false)
-
-/////////
-// kNN //
-/////////
-
-// Define storage arrays for: parameter 1, parameter 2, price, result (up = 1; down = -1)
-var knn1_vwmaknn = array.new_float(1, 0)
-var knn2_vwmaknn = array.new_float(1, 0)
-var knnp_vwmaknn = array.new_float(1, 0)
-var knnr_vwmaknn = array.new_float(1, 0)
-
-// Store the previous trade; buffer the current one until results are in
-_knnStore(p1, p2, src) =>
-    var prevp1_vwmaknn = 0.0
-    var prevp2_vwmaknn = 0.0
-    var prevsrc_vwmaknn = 0.0
-
-    array.push(knn1_vwmaknn, prevp1_vwmaknn)
-    array.push(knn2_vwmaknn, prevp2_vwmaknn)
-    array.push(knnp_vwmaknn, prevsrc_vwmaknn)
-    array.push(knnr_vwmaknn, src >= prevsrc_vwmaknn ? 1 : -1)
-
-    prevp1_vwmaknn := p1
-    prevp2_vwmaknn := p2
-    prevsrc_vwmaknn := src
-    prevsrc_vwmaknn
-
-// Get neighbours by getting k smallest distances from the distance array, and then getting all results with these distances
-_knnGet_vwmaknn(arr1, arr2, k) =>
-    sarr = array.copy(arr1)
-    array.sort(sarr)
-    ss = array.slice(sarr, 0, math.min(k, array.size(sarr)))
-    m = array.max(ss)
-    out = array.new_float(0)
-    for i = 0 to array.size(arr1) - 1 by 1
-        if array.get(arr1, i) <= m
-            array.push(out, array.get(arr2, i))
-    out
-
-// Create a distance array from the two given parameters
-_knnDistance_vwmaknn(p1, p2) =>
-    dist = array.new_float(0)
-    n = array.size(knn1_vwmaknn) - 1
-    for i = 0 to n by 1
-        d = math.sqrt(math.pow(p1 - array.get(knn1_vwmaknn, i), 2) + math.pow(p2 - array.get(knn2_vwmaknn, i), 2))
-        array.push(dist, d)
-    dist
-
-// Make a prediction, finding k nearest neighbours
-_knn_vwmaknn(p1, p2, k) =>
-    slice = _knnGet_vwmaknn(_knnDistance_vwmaknn(p1, p2), array.copy(knnr_vwmaknn), k)
-    knn = array.sum(slice)
-    knn
-
-////////////
-// Inputs //
-////////////
-
-SRC_vwmaknn = input(title='Source', defval=close)
-FAST_vwmaknn = input(title='Fast Length', defval=13)
-SLOW_vwmaknn = input(title='Slow Length', defval=19)
-APPLY_vwmaknn = input(title='Apply kNN filter', defval=true)
-FILTER_vwmaknn = input(title='Filter Length', defval=13)
-SMOOTH_vwmaknn = input(title='Filter Smoothing', defval=6)
-// When DIST is 0, KNN_vwmaknn default was 23
-KNN_vwmaknn = input(title='kNN nearest neighbors (k)', defval=45)
-DIST_vwmaknn = input(title='kNN minimum difference', defval=2)
-BACKGROUND_vwmaknn = input(title='Draw background', defval=false)
-
-////////
-// MA //
-////////
-fastMA_vwmaknn = ta.vwma(SRC_vwmaknn, FAST_vwmaknn)
-slowMA_vwmaknn = ta.vwma(SRC_vwmaknn, SLOW_vwmaknn)
-
-/////////
-// DMI //
-/////////
-
-// Wilders Smoothing (Running Moving Average)
-_rma_vwmaknn(src, length) =>
-    out = 0.0
-    out := ((length - 1) * nz(out[1]) + src) / length
-    out
-
-// DMI (Directional Movement Index)
-_dmi_vwmaknn(len, smooth) =>
-    up = ta.change(high)
-    down = -ta.change(low)
-    plusDM = na(up) ? na : up > down and up > 0 ? up : 0
-    minusDM = na(down) ? na : down > up and down > 0 ? down : 0
-    trur = _rma_vwmaknn(ta.tr, len)
-    plus = fixnan(100 * _rma_vwmaknn(plusDM, len) / trur)
-    minus = fixnan(100 * _rma_vwmaknn(minusDM, len) / trur)
-    sum = plus + minus
-    adx = 100 * _rma_vwmaknn(math.abs(plus - minus) / (sum == 0 ? 1 : sum), smooth)
-    [plus, minus, adx]
-
-[diplus, diminus, adx] = _dmi_vwmaknn(FILTER_vwmaknn, SMOOTH_vwmaknn)
-
-/////////
-// MFI //
-/////////
-
-// common RSI function
-_rsi_vwmaknn(upper, lower) =>
-    if lower == 0
-        100
-    if upper == 0
-        0
-    100.0 - 100.0 / (1.0 + upper / lower)
-
-mfiUp_vwmaknn = math.sum(volume * (ta.change(ohlc4) <= 0 ? 0 : ohlc4), FILTER_vwmaknn)
-mfiDown_vwmaknn = math.sum(volume * (ta.change(ohlc4) >= 0 ? 0 : ohlc4), FILTER_vwmaknn)
-mfi_vwmaknn = _rsi_vwmaknn(mfiUp_vwmaknn, mfiDown_vwmaknn)
-
-////////////
-// Filter //
-////////////
-
-longCondition_vwmaknn = ta.crossover(fastMA_vwmaknn, slowMA_vwmaknn)
-shortCondition_vwmaknn = ta.crossunder(fastMA_vwmaknn, slowMA_vwmaknn)
-
-if longCondition_vwmaknn or shortCondition_vwmaknn
-    _knnStore(adx, mfi_vwmaknn, SRC_vwmaknn)
-filter_vwmaknn = _knn_vwmaknn(adx, mfi_vwmaknn, KNN_vwmaknn)
-
-/////////////
-// Actions //
-/////////////
-
-bgcolor(BACKGROUND_vwmaknn ? filter_vwmaknn >= 0 ? color.green : color.red : na, transp=90)
-plot(activate_vwma_knn_strategy? fastMA_vwmaknn : na, color=color.new(color.red, 0))
-plot(activate_vwma_knn_strategy? slowMA_vwmaknn:na , color=color.new(color.green, 0))
-
-long_vwmaknn=false
-short_vwmaknn=false
-
-if longCondition_vwmaknn and (not APPLY_vwmaknn or filter_vwmaknn >= DIST_vwmaknn)
-
-    long_vwmaknn:=true
-else
-    long_vwmaknn:=false
-
-if shortCondition_vwmaknn and (not APPLY_vwmaknn or filter_vwmaknn <= -DIST_vwmaknn)
-
-    short_vwmaknn:=true
-else
-    short_vwmaknn:=false
-
-//if longCondition_vwmaknn and (not APPLY_vwmaknn or filter_vwmaknn >= DIST_vwmaknn)
-//    strategy.entry('Long', strategy.long)
-//if shortCondition_vwmaknn and (not APPLY_vwmaknn or filter_vwmaknn <= -DIST_vwmaknn)
-//    strategy.entry('Short', strategy.short)
-
-//plot(long_vwmaknn ? low : na, style=plot.style_cross, color=color.new(color.green, 0), linewidth=3, title='long')
-//plotshape(long_vwmaknn ? low : na, title='Long STOP', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.green, 0), transp=0)
-plotshape(activate_vwma_knn_strategy and long_vwmaknn ? low : na, title='Buy Label', text='Buy', location=location.absolute, style=shape.labelup, size=size.tiny, color=color.new(color.green, 0), textcolor=color.new(color.white, 0), transp=0)
-
-
-//plotshape(short_vwmaknn ? high : na, title='SHORT STOP', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.green, 0), transp=0)
-plotshape(activate_vwma_knn_strategy and short_vwmaknn ? high : na, title='SELL Label', text='SELL', location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.new(color.red, 0), textcolor=color.new(color.white, 0), transp=0)
-
-
-
-
-//END VWMA with kNN Machine Learning: MFI/ADX by lastguru
-//******************************************************
 
 
 //START LINEAR REGRESSION CHANNEL
@@ -467,3 +91,236 @@ alertcondition(trendisdown_lrgc, title='Down trend', message='Down trend')
 
 //END LINEAR REGRESSION CHANNEL
 //*******************************************************
+
+
+//BEAr and bull findeR
+
+
+colors_obf = input.string(title='Color Scheme', defval='BRIGHT', options=['DARK', 'BRIGHT'])
+periods_obf = input(5, 'Relevant Periods to identify OB')  // Required number of subsequent candles in the same direction to identify Order Block
+threshold_obf = input.float(0.0, 'Min. Percent move to identify OB', step=0.1)  // Required minimum % move (from potential OB close to last subsequent candle to identify Order Block)
+usewicks_obf = input(false, 'Use whole range [High/Low] for OB marking?')  // Display High/Low range for each OB instead of Open/Low for Bullish / Open/High for Bearish
+showbull_obf = input(true, 'Show latest Bullish Channel?')  // Show Channel for latest Bullish OB?
+showbear_obf = input(true, 'Show latest Bearish Channel?')  // Show Channel for latest Bearish OB?
+showdocu_obf = input(false, 'Show Label for documentation tooltip?')  // Show Label which shows documentation as tooltip?
+info_pan_obf = input(false, 'Show Latest OB Panel?')  // Show Info Panel with latest OB Stats
+
+ob_period_obf = periods_obf + 1  // Identify location of relevant Order Block candle
+absmove_obf = math.abs(close[ob_period_obf] - close[1]) / close[ob_period_obf] * 100  // Calculate absolute percent move from potential OB to last candle of subsequent candles
+relmove_obf = absmove_obf >= threshold_obf  // Identify "Relevant move" by comparing the absolute move to the threshold
+
+// Color Scheme
+bullcolor_obf = colors_obf == 'DARK' ? color.white : color.green
+bearcolor_obf = colors_obf == 'DARK' ? color.blue : color.red
+
+// Bullish Order Block Identification
+bullishOB_obf = close[ob_period_obf] < open[ob_period_obf]  // Determine potential Bullish OB candle (red candle)
+
+int upcandles_obf = 0
+for i = 1 to periods_obf by 1
+    upcandles_obf := upcandles_obf + (close[i] > open[i] ? 1 : 0)  // Determine color of subsequent candles (must all be green to identify a valid Bearish OB)
+    upcandles_obf
+
+OB_bull_obf = bullishOB_obf and upcandles_obf == periods_obf and relmove_obf  // Identification logic (red OB candle & subsequent green candles)
+OB_bull_high_obf = OB_bull_obf ? usewicks_obf ? high[ob_period_obf] : open[ob_period_obf] : na  // Determine OB upper limit (Open or High depending on input)
+OB_bull_low_obf = OB_bull_obf ? low[ob_period_obf] : na  // Determine OB lower limit (Low)
+OB_bull_avg_obf = (OB_bull_high_obf + OB_bull_low_obf) / 2  // Determine OB middle line
+
+
+// Bearish Order Block Identification
+bearishOB_obf = close[ob_period_obf] > open[ob_period_obf]  // Determine potential Bearish OB candle (green candle)
+
+int downcandles_obf = 0
+for i = 1 to periods_obf by 1
+    downcandles_obf := downcandles_obf + (close[i] < open[i] ? 1 : 0)  // Determine color of subsequent candles (must all be red to identify a valid Bearish OB)
+    downcandles_obf
+
+OB_Bear_obf = bearishOB_obf and downcandles_obf == periods_obf and relmove_obf  // Identification logic (green OB candle & subsequent green candles)
+OB_Bear_high_obf = OB_Bear_obf ? high[ob_period_obf] : na  // Determine OB upper limit (High)
+OB_Bear_low_obf = OB_Bear_obf ? usewicks_obf ? low[ob_period_obf] : open[ob_period_obf] : na  // Determine OB lower limit (Open or Low depending on input)
+OB_Bear_avg_obf = (OB_Bear_low_obf + OB_Bear_high_obf) / 2  // Determine OB middle line
+
+
+// Plotting
+
+plotshape(OB_bull_obf, title='Bullish OB', style=shape.triangleup, color=bullcolor_obf, textcolor=bullcolor_obf, size=size.tiny, location=location.belowbar, offset=-ob_period_obf, text='Bullish OB')  // Bullish OB Indicator
+bull1_obf = plot(OB_bull_high_obf, title='Bullish OB High', style=plot.style_linebr, color=bullcolor_obf, offset=-ob_period_obf, linewidth=3)  // Bullish OB Upper Limit
+bull2_obf = plot(OB_bull_low_obf, title='Bullish OB Low', style=plot.style_linebr, color=bullcolor_obf, offset=-ob_period_obf, linewidth=3)  // Bullish OB Lower Limit
+fill(bull1_obf, bull2_obf, color=bullcolor_obf, title='Bullish OB fill', transp=0)  // Fill Bullish OB
+plotshape(OB_bull_avg_obf, title='Bullish OB Average', style=shape.cross, color=bullcolor_obf, size=size.normal, location=location.absolute, offset=-ob_period_obf)  // Bullish OB Average
+
+
+plotshape(OB_Bear_obf, title='Bearish OB', style=shape.triangledown, color=bearcolor_obf, textcolor=bearcolor_obf, size=size.tiny, location=location.abovebar, offset=-ob_period_obf, text='Bearish OB')  // Bearish OB Indicator
+bear1_obf = plot(OB_Bear_low_obf, title='Bearish OB Low', style=plot.style_linebr, color=bearcolor_obf, offset=-ob_period_obf, linewidth=3)  // Bearish OB Lower Limit
+bear2_obf = plot(OB_Bear_high_obf, title='Bearish OB High', style=plot.style_linebr, color=bearcolor_obf, offset=-ob_period_obf, linewidth=3)  // Bearish OB Upper Limit
+fill(bear1_obf, bear2_obf, color=bearcolor_obf, title='Bearish OB fill', transp=0)  // Fill Bearish OB
+plotshape(OB_Bear_avg_obf, title='Bearish OB Average', style=shape.cross, color=bearcolor_obf, size=size.normal, location=location.absolute, offset=-ob_period_obf)  // Bullish OB Average
+
+var line linebull1_obf = na  // Bullish OB average 
+var line linebull2_obf = na  // Bullish OB open
+var line linebull3_obf = na  // Bullish OB low
+var line linebear1_obf = na  // Bearish OB average
+var line linebear2_obf = na  // Bearish OB high
+var line linebear3_obf = na  // Bearish OB open
+
+
+if OB_bull_obf and showbull_obf
+    line.delete(linebull1_obf)
+    linebull1_obf := line.new(x1=bar_index, y1=OB_bull_avg_obf, x2=bar_index - 1, y2=OB_bull_avg_obf, extend=extend.left, color=bullcolor_obf, style=line.style_solid, width=1)
+
+    line.delete(linebull2_obf)
+    linebull2_obf := line.new(x1=bar_index, y1=OB_bull_high_obf, x2=bar_index - 1, y2=OB_bull_high_obf, extend=extend.left, color=bullcolor_obf, style=line.style_dashed, width=1)
+
+    line.delete(linebull3_obf)
+    linebull3_obf := line.new(x1=bar_index, y1=OB_bull_low_obf, x2=bar_index - 1, y2=OB_bull_low_obf, extend=extend.left, color=bullcolor_obf, style=line.style_dashed, width=1)
+    linebull3_obf
+
+if OB_Bear_obf and showbear_obf
+    line.delete(linebear1_obf)
+    linebear1_obf := line.new(x1=bar_index, y1=OB_Bear_avg_obf, x2=bar_index - 1, y2=OB_Bear_avg_obf, extend=extend.left, color=bearcolor_obf, style=line.style_solid, width=1)
+
+    line.delete(linebear2_obf)
+    linebear2_obf := line.new(x1=bar_index, y1=OB_Bear_high_obf, x2=bar_index - 1, y2=OB_Bear_high_obf, extend=extend.left, color=bearcolor_obf, style=line.style_dashed, width=1)
+
+    line.delete(linebear3_obf)
+    linebear3_obf := line.new(x1=bar_index, y1=OB_Bear_low_obf, x2=bar_index - 1, y2=OB_Bear_low_obf, extend=extend.left, color=bearcolor_obf, style=line.style_dashed, width=1)
+    linebear3_obf
+
+
+// Alerts for Order Blocks Detection
+
+alertcondition(OB_bull_obf, title='New Bullish OB detected', message='New Bullish OB detected - This is NOT a BUY signal!')
+alertcondition(OB_Bear_obf, title='New Bearish OB detected', message='New Bearish OB detected - This is NOT a SELL signal!')
+
+// Print latest Order Blocks in Data Window
+
+var latest_bull_high_obf = 0.0  // Variable to keep latest Bull OB high
+var latest_bull_avg_obf = 0.0  // Variable to keep latest Bull OB average
+var latest_bull_low_obf = 0.0  // Variable to keep latest Bull OB low
+var latest_bear_high_obf = 0.0  // Variable to keep latest Bear OB high
+var latest_bear_avg_obf = 0.0  // Variable to keep latest Bear OB average
+var latest_bear_low_obf = 0.0  // Variable to keep latest Bear OB low
+
+// Assign latest values to variables
+if OB_bull_high_obf > 0
+    latest_bull_high_obf := OB_bull_high_obf
+    latest_bull_high_obf
+
+if OB_bull_avg_obf > 0
+    latest_bull_avg_obf := OB_bull_avg_obf
+    latest_bull_avg_obf
+
+if OB_bull_low_obf > 0
+    latest_bull_low_obf := OB_bull_low_obf
+    latest_bull_low_obf
+
+if OB_Bear_high_obf > 0
+    latest_bear_high_obf := OB_Bear_high_obf
+    latest_bear_high_obf
+
+if OB_Bear_avg_obf > 0
+    latest_bear_avg_obf := OB_Bear_avg_obf
+    latest_bear_avg_obf
+
+if OB_Bear_low_obf > 0
+    latest_bear_low_obf := OB_Bear_low_obf
+    latest_bear_low_obf
+
+// Plot invisible characters to be able to show the values in the Data Window
+plotchar(latest_bull_high_obf, char=' ', location=location.abovebar, color=color.new(#777777, 100), size=size.tiny, title='Latest Bull High')
+plotchar(latest_bull_avg_obf, char=' ', location=location.abovebar, color=color.new(#777777, 100), size=size.tiny, title='Latest Bull Avg')
+plotchar(latest_bull_low_obf, char=' ', location=location.abovebar, color=color.new(#777777, 100), size=size.tiny, title='Latest Bull Low')
+plotchar(latest_bear_high_obf, char=' ', location=location.abovebar, color=color.new(#777777, 100), size=size.tiny, title='Latest Bear High')
+plotchar(latest_bear_avg_obf, char=' ', location=location.abovebar, color=color.new(#777777, 100), size=size.tiny, title='Latest Bear Avg')
+plotchar(latest_bear_low_obf, char=' ', location=location.abovebar, color=color.new(#777777, 100), size=size.tiny, title='Latest Bear Low')
+
+
+//InfoPanel for latest Order Blocks
+
+draw_InfoPanel(_text, _x, _y, font_size) =>
+    var label la_panel = na
+    label.delete(la_panel)
+    la_panel := label.new(x=_x, y=_y, text=_text, xloc=xloc.bar_time, yloc=yloc.price, color=color.new(#383838, 5), style=label.style_label_left, textcolor=color.white, size=font_size)
+    la_panel
+
+info_panel_x_obf = time_close + math.round(ta.change(time) * 100)
+info_panel_y_obf = close
+
+title_obf = 'LATEST ORDER BLOCKS'
+row0_obf = '-----------------------------------------------------'
+row1_obf = ' Bullish - High: ' + str.tostring(latest_bull_high_obf, '#.##')
+row2_obf = ' Bullish - Avg: ' + str.tostring(latest_bull_avg_obf, '#.##')
+row3_obf = ' Bullish - Low: ' + str.tostring(latest_bull_low_obf, '#.##')
+row4_obf = '-----------------------------------------------------'
+row5_obf = ' Bearish - High: ' + str.tostring(latest_bear_high_obf, '#.##')
+row6_obf = ' Bearish - Avg: ' + str.tostring(latest_bear_avg_obf, '#.##')
+row7_obf = ' Bearish - Low: ' + str.tostring(latest_bear_low_obf, '#.##')
+
+panel_text_obf = '\n' + title_obf + '\n' + row0_obf + '\n' + row1_obf + '\n' + row2_obf + '\n' + row3_obf + '\n' + row4_obf + '\n\n' + row5_obf + '\n' + row6_obf + '\n' + row7_obf + '\n'
+
+if info_pan_obf
+    draw_InfoPanel(panel_text_obf, info_panel_x_obf, info_panel_y_obf, size.normal)
+
+
+// === Label for Documentation/Tooltip ===
+chper_obf = time - time[1]
+chper_obf := ta.change(chper_obf) > 0 ? chper_obf[1] : chper_obf
+
+// === Tooltip text ===
+
+var vartooltip_obf = 'Indicator to help identifying instituational Order Blocks. Often these blocks signal the beginning of a strong move, but there is a high probability, that these prices will be revisited at a later point in time again and therefore are interesting levels to place limit orders. \nBullish Order block is the last down candle before a sequence of up candles. \nBearish Order Block is the last up candle before a sequence of down candles. \nIn the settings the number of required sequential candles can be adjusted. \nFurthermore a %-threshold can be entered which the sequential move needs to achieve in order to validate a relevant Order Block. \nChannels for the last Bullish/Bearish Block can be shown/hidden.'
+
+// === Print Label ===
+var label l_docu = na
+label.delete(l_docu)
+
+if showdocu_obf
+    l_docu := label.new(x=time + chper_obf * 35, y=close, text='DOCU OB', color=color.gray, textcolor=color.white, style=label.style_label_center, xloc=xloc.bar_time, yloc=yloc.price, size=size.tiny, textalign=text.align_left, tooltip=vartooltip_obf)
+    l_docu
+
+
+
+
+//AND BULL BEAr findeR
+//**************************************
+//START EXTRAPOLATED PIVOTE CONNECTOR
+
+
+//----
+length_ex_p_conn = input(100)
+astart_ex_p_conn = input(1, 'A-High Position')
+aend_ex_p_conn = input(0, 'B-High Position')
+bstart_ex_p_conn = input(1, 'A-Low Position')
+bend_ex_p_conn = input(0, 'B-Low Position')
+csrc_ex_p_conn = input(false, 'Use Custom Source ?')
+src_ex_p_conn = input(close, 'Custom Source')
+//----
+up_ex_p_conn = ta.pivothigh(csrc_ex_p_conn ? src_ex_p_conn : high, length_ex_p_conn, length_ex_p_conn)
+dn_ex_p_conn = ta.pivotlow(csrc_ex_p_conn ? src_ex_p_conn : low, length_ex_p_conn, length_ex_p_conn)
+//----
+n_ex_p_conn = bar_index
+a1_ex_p_conn = ta.valuewhen(not na(up_ex_p_conn), n_ex_p_conn, astart_ex_p_conn)
+b1_ex_p_conn = ta.valuewhen(not na(dn_ex_p_conn), n_ex_p_conn, bstart_ex_p_conn)
+a2_ex_p_conn = ta.valuewhen(not na(up_ex_p_conn), n_ex_p_conn, aend_ex_p_conn)
+b2_ex_p_conn = ta.valuewhen(not na(dn_ex_p_conn), n_ex_p_conn, bend_ex_p_conn)
+//----
+line upper_ex_p_conn = line.new(n_ex_p_conn[n_ex_p_conn - a1_ex_p_conn + length_ex_p_conn], up_ex_p_conn[n_ex_p_conn - a1_ex_p_conn], n_ex_p_conn[n_ex_p_conn - a2_ex_p_conn + length_ex_p_conn], up_ex_p_conn[n_ex_p_conn - a2_ex_p_conn], extend=extend.right, color=color.blue, width=2)
+line lower_ex_p_conn = line.new(n_ex_p_conn[n_ex_p_conn - b1_ex_p_conn + length_ex_p_conn], dn_ex_p_conn[n_ex_p_conn - b1_ex_p_conn], n_ex_p_conn[n_ex_p_conn - b2_ex_p_conn + length_ex_p_conn], dn_ex_p_conn[n_ex_p_conn - b2_ex_p_conn], extend=extend.right, color=color.orange, width=2)
+line.delete(upper_ex_p_conn[1])
+line.delete(lower_ex_p_conn[1])
+//----
+label ahigh_ex_p_conn = label.new(n_ex_p_conn[n_ex_p_conn - a1_ex_p_conn + length_ex_p_conn], up_ex_p_conn[n_ex_p_conn - a1_ex_p_conn], 'A-High', color=color.blue, style=label.style_label_down, textcolor=color.white, size=size.small)
+label bhigh_ex_p_conn = label.new(n_ex_p_conn[n_ex_p_conn - a2_ex_p_conn + length_ex_p_conn], up_ex_p_conn[n_ex_p_conn - a2_ex_p_conn], 'B-High', color=color.blue, style=label.style_label_down, textcolor=color.white, size=size.small)
+label alow_ex_p_conn = label.new(n_ex_p_conn[n_ex_p_conn - b1_ex_p_conn + length_ex_p_conn], dn_ex_p_conn[n_ex_p_conn - b1_ex_p_conn], 'A-Low', color=color.orange, style=label.style_label_up, textcolor=color.white, size=size.small)
+label blow_ex_p_conn = label.new(n_ex_p_conn[n_ex_p_conn - b2_ex_p_conn + length_ex_p_conn], dn_ex_p_conn[n_ex_p_conn - b2_ex_p_conn], 'B-Low', color=color.orange, style=label.style_label_up, textcolor=color.white, size=size.small)
+label.delete(ahigh_ex_p_conn[1])
+label.delete(bhigh_ex_p_conn[1])
+label.delete(alow_ex_p_conn[1])
+label.delete(blow_ex_p_conn[1])
+//----
+plot(up_ex_p_conn, 'Pivot High\'s', color.new(color.blue, 0), 4, style=plot.style_circles, offset=-length_ex_p_conn, join=true)
+plot(dn_ex_p_conn, 'Pivot Low\'s', color.new(color.orange, 0), 4, style=plot.style_circles, offset=-length_ex_p_conn, join=true)
+
+
+
+//END EXTRAPOLATED PIVOTE CONNECTOR
